@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>HY3 — Панель управления</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="hero">
+      <div class="hero-badge">Tencent HY3</div>
+      <h1>Панель управления</h1>
+      <p class="hero-sub">Настройте режим, температуру и память бота</p>
+    </header>
+
+    <section class="card">
+      <h2>Режим работы</h2>
+      <p class="hint">Сколько сообщений из истории учитывать при ответе</p>
+      <div class="mode-grid" id="modeGrid">
+        <button class="mode-card" data-mode="fast">
+          <span class="mode-icon">⚡</span>
+          <span class="mode-title">Быстрый</span>
+          <span class="mode-desc">4 сообщения</span>
+        </button>
+        <button class="mode-card" data-mode="medium">
+          <span class="mode-icon">📊</span>
+          <span class="mode-title">Средний</span>
+          <span class="mode-desc">10 сообщений</span>
+        </button>
+        <button class="mode-card" data-mode="max">
+          <span class="mode-icon">🔥</span>
+          <span class="mode-title">Максимум</span>
+          <span class="mode-desc">20 сообщений</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Температура</h2>
+      <p class="hint">Креативность ответов модели</p>
+      <div class="temp-grid" id="tempGrid">
+        <button class="temp-chip" data-temp="0.3">0.3 — точно</button>
+        <button class="temp-chip" data-temp="0.7">0.7 — баланс</button>
+        <button class="temp-chip" data-temp="1.0">1.0 — живо</button>
+        <button class="temp-chip" data-temp="1.3">1.3 — макс</button>
+      </div>
+      <div class="temp-value">Выбрано: <strong id="tempLabel">0.7</strong></div>
+    </section>
+
+    <section class="card">
+      <h2>Действия</h2>
+      <div class="actions">
+        <button class="action-btn danger" id="clearBtn">🧹 Очистить память</button>
+        <button class="action-btn" id="testBtn">🧪 Тест подключения</button>
+      </div>
+    </section>
+
+    <section class="card info-card">
+      <h2>О боте</h2>
+      <ul class="info-list">
+        <li><span>Модель</span><strong>Tencent HY3</strong></li>
+        <li><span>Провайдер</span><strong>OpenRouter</strong></li>
+        <li><span>Формат</span><strong>Обычный текст</strong></li>
+      </ul>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
