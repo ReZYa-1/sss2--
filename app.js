@@ -1,4 +1,13 @@
-const tg = window.Telegram.WebApp;
+// Заглушка на случай открытия вне Telegram (обычный браузер)
+const noop = () => {};
+const tg = (window.Telegram && window.Telegram.WebApp) || {
+  ready: noop,
+  expand: noop,
+  themeParams: {},
+  MainButton: { hide: noop },
+  HapticFeedback: { selectionChanged: noop, impactOccurred: noop, notificationOccurred: noop },
+  showAlert: (msg) => alert(msg),
+};
 
 const SETTINGS_KEY = "hy3_settings_v1";
 const HISTORY_KEY = "hy3_chat_history_v1";
@@ -6,10 +15,19 @@ const MODEL = "tencent/hy3:free";
 const MODE_LIMITS = { fast: 4, medium: 10, max: 20 };
 const MAX_HISTORY = 40;
 
+const BG_PRESETS = {
+  night: ["#0b0f1a", "#202a44"],
+  ocean: ["#0f2027", "#2c5364"],
+  purple: ["#1a0533", "#6a3093"],
+  sunset: ["#3a1c71", "#d76d77"],
+  forest: ["#0b2e1f", "#2e7d5b"],
+};
+
 const state = {
   mode: "medium",
   temperature: 0.7,
   apiKey: "",
+  bg: { type: "tg" },
 };
 
 let chatHistory = [];
@@ -23,6 +41,7 @@ function loadState() {
     if (saved.mode in MODE_LIMITS) state.mode = saved.mode;
     if (typeof saved.temperature === "number") state.temperature = saved.temperature;
     if (typeof saved.apiKey === "string") state.apiKey = saved.apiKey;
+    if (saved.bg && typeof saved.bg === "object") state.bg = saved.bg;
   } catch (_) {
     /* игнорируем битое хранилище */
   }
@@ -199,6 +218,49 @@ function updateKeyStatus() {
   }
 }
 
+// ---------- фон ----------
+
+function bgGradient(from, to) {
+  return `linear-gradient(160deg, ${from}, ${to})`;
+}
+
+function applyBackground() {
+  const bg = state.bg || { type: "tg" };
+  let from = null;
+  let to = null;
+
+  if (bg.type === "preset" && BG_PRESETS[bg.id]) {
+    [from, to] = BG_PRESETS[bg.id];
+  } else if (bg.type === "custom" && bg.from && bg.to) {
+    from = bg.from;
+    to = bg.to;
+  }
+
+  document.body.style.backgroundImage = from ? bgGradient(from, to) : "";
+
+  document.querySelectorAll(".bg-swatch").forEach((btn) => {
+    const id = btn.dataset.bg;
+    const isActive =
+      (bg.type === "tg" && id === "tg") ||
+      (bg.type === "preset" && bg.id === id);
+    btn.classList.toggle("active", isActive);
+  });
+}
+
+function initBgSwatches() {
+  document.querySelectorAll(".bg-swatch").forEach((btn) => {
+    const preset = BG_PRESETS[btn.dataset.bg];
+    if (preset) {
+      btn.style.backgroundImage = bgGradient(preset[0], preset[1]);
+    }
+  });
+
+  if (state.bg && state.bg.type === "custom") {
+    document.getElementById("bgFrom").value = state.bg.from;
+    document.getElementById("bgTo").value = state.bg.to;
+  }
+}
+
 // ---------- тема ----------
 
 function applyTheme() {
@@ -225,6 +287,8 @@ function init() {
   setActiveMode(state.mode);
   setActiveTemp(state.temperature);
   updateKeyStatus();
+  initBgSwatches();
+  applyBackground();
 
   document.querySelector(".tabs").addEventListener("click", (event) => {
     const tab = event.target.closest(".tab");
@@ -270,6 +334,29 @@ function init() {
     setActiveTemp(Number(chip.dataset.temp));
     showStatus("✅ Температура сохранена");
     tg.HapticFeedback.selectionChanged();
+  });
+
+  document.getElementById("bgGrid").addEventListener("click", (event) => {
+    const swatch = event.target.closest(".bg-swatch");
+    if (!swatch) return;
+    const id = swatch.dataset.bg;
+    state.bg = id === "tg" ? { type: "tg" } : { type: "preset", id };
+    saveSettings();
+    applyBackground();
+    showStatus("🎨 Фон применён");
+    tg.HapticFeedback.selectionChanged();
+  });
+
+  document.getElementById("applyCustomBg").addEventListener("click", () => {
+    state.bg = {
+      type: "custom",
+      from: document.getElementById("bgFrom").value,
+      to: document.getElementById("bgTo").value,
+    };
+    saveSettings();
+    applyBackground();
+    showStatus("🎨 Свой фон применён");
+    tg.HapticFeedback.notificationOccurred("success");
   });
 
   document.getElementById("clearBtn").addEventListener("click", () => {

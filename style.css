@@ -20,6 +20,7 @@ html, body {
   padding: 0;
   height: 100%;
   background: var(--bg);
+  background-size: cover;
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -142,7 +143,9 @@ body {
   gap: 8px;
   padding: 8px 12px calc(12px + env(safe-area-inset-bottom));
   flex-shrink: 0;
-  background: var(--bg);
+  background: color-mix(in srgb, var(--bg) 65%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border-top: 1px solid var(--border);
 }
 
@@ -185,11 +188,100 @@ body {
 /* ---------- карточки настроек ---------- */
 
 .card {
-  background: var(--secondary);
+  background: color-mix(in srgb, var(--secondary) 82%, transparent);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--border);
   border-radius: var(--radius);
   padding: 16px;
   margin-bottom: 14px;
+}
+
+/* ---------- выбор фона ---------- */
+
+.bg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.bg-swatch {
+  appearance: none;
+  border: 2px solid var(--border);
+  background: var(--bg);
+  color: #ffffff;
+  border-radius: 12px;
+  height: 56px;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 6px;
+  transition: transform 0.15s ease, border-color 0.15s ease;
+}
+
+.bg-swatch span {
+  font-size: 11px;
+  font-weight: 700;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+
+.bg-swatch:active {
+  transform: scale(0.97);
+}
+
+.bg-swatch.active {
+  border-color: var(--accent);
+}
+
+.bg-swatch[data-bg="tg"] {
+  background: var(--secondary);
+  color: var(--text);
+}
+
+.custom-bg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.custom-bg-label {
+  font-size: 13px;
+  color: var(--hint);
+  flex: 1;
+}
+
+.custom-bg input[type="color"] {
+  appearance: none;
+  border: 1px solid var(--border);
+  background: none;
+  border-radius: 10px;
+  width: 40px;
+  height: 40px;
+  padding: 2px;
+  cursor: pointer;
+}
+
+.custom-bg input[type="color"]::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.custom-bg input[type="color"]::-webkit-color-swatch {
+  border: none;
+  border-radius: 8px;
+}
+
+.custom-bg button {
+  appearance: none;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
 }
 
 .card h2 {

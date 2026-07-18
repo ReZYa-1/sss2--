@@ -40,6 +40,25 @@
       </section>
 
       <section class="card">
+        <h2>🎨 Фон</h2>
+        <p class="hint">Выбери готовый фон или собери свой из двух цветов</p>
+        <div class="bg-grid" id="bgGrid">
+          <button class="bg-swatch" data-bg="tg"><span>Авто</span></button>
+          <button class="bg-swatch" data-bg="night"><span>Ночь</span></button>
+          <button class="bg-swatch" data-bg="ocean"><span>Океан</span></button>
+          <button class="bg-swatch" data-bg="purple"><span>Космос</span></button>
+          <button class="bg-swatch" data-bg="sunset"><span>Закат</span></button>
+          <button class="bg-swatch" data-bg="forest"><span>Лес</span></button>
+        </div>
+        <div class="custom-bg">
+          <span class="custom-bg-label">Свой фон:</span>
+          <input type="color" id="bgFrom" value="#0f1117" aria-label="Верхний цвет" />
+          <input type="color" id="bgTo" value="#2c5364" aria-label="Нижний цвет" />
+          <button id="applyCustomBg">Применить</button>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Режим работы</h2>
         <p class="hint">Сколько сообщений из истории учитывать при ответе</p>
         <div class="mode-grid" id="modeGrid">
