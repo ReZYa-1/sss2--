@@ -1,42 +1,182 @@
 const tg = window.Telegram.WebApp;
 
-const STORAGE_KEY = "hy3_settings_v1";
+const SETTINGS_KEY = "hy3_settings_v1";
+const HISTORY_KEY = "hy3_chat_history_v1";
+const MODEL = "tencent/hy3:free";
+const MODE_LIMITS = { fast: 4, medium: 10, max: 20 };
+const MAX_HISTORY = 40;
 
 const state = {
   mode: "medium",
   temperature: 0.7,
+  apiKey: "",
 };
+
+let chatHistory = [];
+let isSending = false;
+
+// ---------- хранение ----------
 
 function loadState() {
   try {
-    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
-    if (saved.mode) state.mode = saved.mode;
-    if (saved.temperature) state.temperature = saved.temperature;
+    const saved = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
+    if (saved.mode in MODE_LIMITS) state.mode = saved.mode;
+    if (typeof saved.temperature === "number") state.temperature = saved.temperature;
+    if (typeof saved.apiKey === "string") state.apiKey = saved.apiKey;
   } catch (_) {
-    /* ignore broken storage */
+    /* игнорируем битое хранилище */
   }
 
-  const params = new URLSearchParams(window.location.search);
-  const mode = params.get("mode");
-  const temp = params.get("temp");
-  if (mode) state.mode = mode;
-  if (temp) state.temperature = Number(temp);
+  try {
+    const saved = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    if (Array.isArray(saved)) chatHistory = saved;
+  } catch (_) {
+    chatHistory = [];
+  }
 }
 
-function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state));
 }
 
-function sendToBot(payload) {
-  tg.sendData(JSON.stringify(payload));
-  tg.close();
+function saveHistory() {
+  chatHistory = chatHistory.slice(-MAX_HISTORY);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(chatHistory));
 }
+
+// ---------- утилиты ----------
+
+function cleanMarkdown(text) {
+  if (!text) return text;
+  return text
+    .replace(/\*\*\s*([\s\S]+?)\s*\*\*/g, "$1")
+    .replace(/__\s*([\s\S]+?)\s*__/g, "$1")
+    .replace(/(?<!\w)\*(?!\*)/g, "")
+    .replace(/(?<!\w)_(?!_)/g, "")
+    .trim();
+}
+
+function showStatus(text) {
+  const el = document.getElementById("status");
+  el.textContent = text;
+  el.classList.add("visible");
+  clearTimeout(showStatus.timer);
+  showStatus.timer = setTimeout(() => el.classList.remove("visible"), 2500);
+}
+
+// ---------- чат ----------
+
+function addBubble(role, text) {
+  const placeholder = document.getElementById("chatPlaceholder");
+  if (placeholder) placeholder.remove();
+
+  const el = document.createElement("div");
+  el.className = `bubble ${role}`;
+  el.textContent = text;
+  document.getElementById("messages").appendChild(el);
+  el.scrollIntoView({ behavior: "smooth", block: "end" });
+  return el;
+}
+
+function renderHistory() {
+  for (const msg of chatHistory) {
+    addBubble(msg.role === "user" ? "user" : "assistant", msg.content);
+  }
+}
+
+async function askModel(messages, { maxTokens = 800, temperature = state.temperature } = {}) {
+  const resp = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${state.apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages,
+      max_tokens: maxTokens,
+      temperature,
+    }),
+  });
+
+  if (!resp.ok) {
+    throw new Error(`API ${resp.status}`);
+  }
+
+  const data = await resp.json();
+  const content = data?.choices?.[0]?.message?.content;
+  if (!content) throw new Error("empty");
+  return content;
+}
+
+async function sendMessage() {
+  if (isSending) return;
+
+  const input = document.getElementById("chatInput");
+  const text = input.value.trim();
+  if (!text) return;
+
+  if (!state.apiKey) {
+    showStatus("🔑 Сначала вставь ключ OpenRouter в Настройках");
+    switchTab("settings");
+    return;
+  }
+
+  input.value = "";
+  input.style.height = "auto";
+
+  chatHistory.push({ role: "user", content: text });
+  saveHistory();
+  addBubble("user", text);
+
+  const typing = addBubble("assistant typing", "…");
+  isSending = true;
+  document.getElementById("sendBtn").disabled = true;
+
+  const limit = MODE_LIMITS[state.mode] || 10;
+  const messages = [
+    { role: "system", content: "Отвечай обычным текстом без Markdown." },
+    ...chatHistory.slice(-limit),
+  ];
+
+  try {
+    const answer = cleanMarkdown(await askModel(messages));
+    chatHistory.push({ role: "assistant", content: answer });
+    saveHistory();
+    typing.classList.remove("typing");
+    typing.textContent = answer;
+  } catch (_) {
+    // не храним вопрос без ответа
+    chatHistory.pop();
+    saveHistory();
+    typing.classList.remove("typing");
+    typing.classList.add("error");
+    typing.textContent = "❌ Не удалось получить ответ. Проверь ключ и интернет.";
+  } finally {
+    isSending = false;
+    document.getElementById("sendBtn").disabled = false;
+    typing.scrollIntoView({ behavior: "smooth", block: "end" });
+  }
+}
+
+// ---------- вкладки ----------
+
+function switchTab(name) {
+  document.querySelectorAll(".tab").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.tab === name);
+  });
+  document.getElementById("view-chat").classList.toggle("hidden", name !== "chat");
+  document.getElementById("view-settings").classList.toggle("hidden", name !== "settings");
+}
+
+// ---------- настройки ----------
 
 function setActiveMode(mode) {
   state.mode = mode;
   document.querySelectorAll(".mode-card").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.mode === mode);
   });
+  saveSettings();
 }
 
 function setActiveTemp(value) {
@@ -45,36 +185,82 @@ function setActiveTemp(value) {
     btn.classList.toggle("active", Number(btn.dataset.temp) === value);
   });
   document.getElementById("tempLabel").textContent = String(value);
+  saveSettings();
 }
 
-function applyTheme() {
-  document.documentElement.style.setProperty("--bg", tg.themeParams.bg_color || "#0f1117");
-  document.documentElement.style.setProperty("--text", tg.themeParams.text_color || "#f5f7fb");
-  document.documentElement.style.setProperty("--hint", tg.themeParams.hint_color || "#8b93a7");
-  document.documentElement.style.setProperty("--accent", tg.themeParams.button_color || "#2aabee");
-  document.documentElement.style.setProperty(
-    "--accent-text",
-    tg.themeParams.button_text_color || "#ffffff"
-  );
-  document.documentElement.style.setProperty(
-    "--secondary",
-    tg.themeParams.secondary_bg_color || "#1a1f2b"
-  );
+function updateKeyStatus() {
+  const el = document.getElementById("keyStatus");
+  if (state.apiKey) {
+    el.textContent = "✅ Ключ сохранён";
+    el.className = "key-status ok";
+  } else {
+    el.textContent = "⚠️ Ключ не задан — чат не будет работать";
+    el.className = "key-status warn";
+  }
 }
+
+// ---------- тема ----------
+
+function applyTheme() {
+  const p = tg.themeParams;
+  const root = document.documentElement.style;
+  root.setProperty("--bg", p.bg_color || "#0f1117");
+  root.setProperty("--text", p.text_color || "#f5f7fb");
+  root.setProperty("--hint", p.hint_color || "#8b93a7");
+  root.setProperty("--accent", p.button_color || "#2aabee");
+  root.setProperty("--accent-text", p.button_text_color || "#ffffff");
+  root.setProperty("--secondary", p.secondary_bg_color || "#1a1f2b");
+}
+
+// ---------- запуск ----------
 
 function init() {
   tg.ready();
   tg.expand();
+  tg.MainButton.hide();
   applyTheme();
 
   loadState();
+  renderHistory();
   setActiveMode(state.mode);
   setActiveTemp(state.temperature);
+  updateKeyStatus();
+
+  document.querySelector(".tabs").addEventListener("click", (event) => {
+    const tab = event.target.closest(".tab");
+    if (!tab) return;
+    switchTab(tab.dataset.tab);
+    tg.HapticFeedback.selectionChanged();
+  });
+
+  const input = document.getElementById("chatInput");
+  input.addEventListener("input", () => {
+    input.style.height = "auto";
+    input.style.height = Math.min(input.scrollHeight, 120) + "px";
+  });
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      sendMessage();
+    }
+  });
+
+  document.getElementById("sendBtn").addEventListener("click", sendMessage);
+
+  document.getElementById("saveKeyBtn").addEventListener("click", () => {
+    state.apiKey = document.getElementById("apiKeyInput").value.trim();
+    saveSettings();
+    updateKeyStatus();
+    document.getElementById("apiKeyInput").value = "";
+    showStatus(state.apiKey ? "🔑 Ключ сохранён" : "🔑 Ключ удалён");
+    tg.HapticFeedback.notificationOccurred("success");
+  });
 
   document.getElementById("modeGrid").addEventListener("click", (event) => {
     const card = event.target.closest(".mode-card");
     if (!card) return;
     setActiveMode(card.dataset.mode);
+    showStatus("✅ Режим сохранён");
     tg.HapticFeedback.selectionChanged();
   });
 
@@ -82,29 +268,36 @@ function init() {
     const chip = event.target.closest(".temp-chip");
     if (!chip) return;
     setActiveTemp(Number(chip.dataset.temp));
+    showStatus("✅ Температура сохранена");
     tg.HapticFeedback.selectionChanged();
   });
 
   document.getElementById("clearBtn").addEventListener("click", () => {
+    chatHistory = [];
+    saveHistory();
+    const messages = document.getElementById("messages");
+    messages.innerHTML = '<div class="chat-placeholder" id="chatPlaceholder">Напиши сообщение — Tencent HY3 ответит прямо здесь</div>';
+    showStatus("🗑 История очищена");
     tg.HapticFeedback.impactOccurred("medium");
-    sendToBot({ action: "clear" });
   });
 
-  document.getElementById("testBtn").addEventListener("click", () => {
-    tg.HapticFeedback.impactOccurred("light");
-    sendToBot({ action: "test" });
-  });
-
-  tg.MainButton.setText("Сохранить настройки");
-  tg.MainButton.show();
-  tg.MainButton.onClick(() => {
-    saveState();
-    tg.HapticFeedback.notificationOccurred("success");
-    sendToBot({
-      action: "apply",
-      mode: state.mode,
-      temperature: state.temperature,
-    });
+  document.getElementById("testBtn").addEventListener("click", async () => {
+    if (!state.apiKey) {
+      showStatus("🔑 Сначала вставь ключ OpenRouter");
+      return;
+    }
+    showStatus("🧪 Проверяю подключение...");
+    try {
+      await askModel(
+        [{ role: "user", content: "Представься в одном предложении" }],
+        { maxTokens: 100, temperature: 0.5 }
+      );
+      showStatus("✅ Тест пройден — подключение работает");
+      tg.HapticFeedback.notificationOccurred("success");
+    } catch (_) {
+      showStatus("❌ Тест не пройден — проверь ключ");
+      tg.HapticFeedback.notificationOccurred("error");
+    }
   });
 }
 
